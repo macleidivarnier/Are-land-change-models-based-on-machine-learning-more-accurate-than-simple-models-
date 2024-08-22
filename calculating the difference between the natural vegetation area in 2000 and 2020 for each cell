@@ -1,3 +1,5 @@
+////////////////calculating the difference between the natural vegetation area in 2000 and 2020 for each cell//////////////////////////////////
+
 //Select the 2020 mapbiomas land use classification
 var image_2020 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
                    .clip(roi) 
