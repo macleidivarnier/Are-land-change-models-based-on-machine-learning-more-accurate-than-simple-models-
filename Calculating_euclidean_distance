@@ -1,0 +1,59 @@
+//////////////define the study area//////////////
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D'])); // Pampa:SH-21-X-D, Amazon: SC-20-V-D, Cerrado: SD-23-V-D  
+Map.addLayer(roi)
+ 
+Map.centerObject(roi)
+
+//////////////Euclidean distance functions//////////////
+    //setting the size
+var buffer_size_1000 =  10000;
+
+    //creating the function
+var buffer_1000_function = function(feature) {
+  return feature.buffer(buffer_size_1000);
+};
+
+    //creating the buffer
+var buffer_roi = roi.map(buffer_1000_function)
+    Map.addLayer(buffer_roi, null, 'buffer_roi')
+
+//////////////MapBiomas Data//////////////
+//Select the 1995 mapbiomas land use classification
+var image_1995 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(buffer_roi) 
+                   .select('classification_1995'); 
+
+/*******************Euclidean distance anthropic uses*******************/
+// create a list of land use classes from the classification
+var fromList_anthropic_uses = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27];
+
+// A corresponding list of replacement values 
+var toList_anthropic_uses =  [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, 2, 2, 3, 2];
+
+// performs the reclassification
+var Remap_1995_anthropic_uses = image_1995.remap({
+  from: fromList_anthropic_uses,
+  to: toList_anthropic_uses,
+  defaultValue: 0,
+  bandName: 'classification_1995'
+});
+
+//Select the 2022 mapbiomas water land use class
+var anthropic_uses_class = Remap_1995_anthropic_uses.eq(3)
+Map.addLayer(anthropic_uses_class, null, 'anthropic_uses_class')
+
+    //applying the Euclidean distance function
+var anthropic_uses_distance_00 = anthropic_uses_class.distance(euclideanKernel).clip(roi);
+var anthropic_uses_distance_00 = anthropic_uses_distance_00.reproject('EPSG:4326', null, 30).rename('HDND')
+    Map.addLayer(anthropic_uses_distance_00, visParamsEuclideanDist, 'anthropic_uses_distance_00');
+
+//export the image to google drive
+Export.image.toDrive({
+  image: anthropic_uses_distance_00, 
+  description:'anthropic_uses_distance_00',
+  folder:'variables_pampa', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
