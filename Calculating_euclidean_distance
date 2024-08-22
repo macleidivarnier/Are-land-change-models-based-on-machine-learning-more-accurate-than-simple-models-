@@ -1,3 +1,6 @@
+////////////////////////Calculating Euclidian distance////////////////////////
+//Application for euclidean distance for anthropic uses
+
 //////////////define the study area//////////////
 var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D'])); // Pampa:SH-21-X-D, Amazon: SC-20-V-D, Cerrado: SD-23-V-D  
 Map.addLayer(roi)
