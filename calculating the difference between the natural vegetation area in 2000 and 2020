@@ -1,1 +1,101 @@
+//Select the 2020 mapbiomas land use classification
+var image_2020 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2020'); 
 
+// create a list of land use classes from the classification
+var fromList = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27];
+
+// A corresponding list of replacement values 
+var toList =  [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+
+// performs the reclassification
+var imgRemap_2020 = image_2020.remap({
+  from: fromList,
+  to: toList,
+  bandName: 'classification_2020'
+});
+
+//select only the class containing natural vegetation
+imgRemap_2020 = imgRemap_2020.mask(imgRemap_2020.eq(1))
+
+// add the image to the map
+Map.addLayer(imgRemap_2020, null, 'remap_2020')
+
+//Select the 2000 mapbiomas land use classification
+var image_2000 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2000'); 
+
+// performs the reclassification
+var imgRemap_2000 = image_2000.remap({
+  from: fromList,
+  to: toList,
+  bandName: 'classification_2000'
+});
+
+//select only the class containing natural vegetation
+imgRemap_2000 = imgRemap_2000.mask(imgRemap_2000.eq(1))
+
+// add the image to the map
+Map.addLayer(imgRemap_2000, null, 'remap_2000')
+
+//calculate the total area of natural vegetation in 2020 for each window
+var area_veg_2020 = imgRemap_2020.reduceRegions({
+  collection: roi,
+  reducer: ee.Reducer.count(),
+  scale: 30,  
+  crs: 'EPSG:4326',  
+});
+//print(area_veg_2020)
+
+//calculate the total area of natural vegetation in 2000 for each window
+var area_veg_2000 = imgRemap_2000.reduceRegions({
+  collection: roi,
+  reducer: ee.Reducer.count(),
+  scale: 30,  
+  crs: 'EPSG:4326',
+});
+//print(area_veg_2000)
+
+// Join both collections
+// Use an equals filter to define how the collections match.
+var filter = ee.Filter.equals({
+  leftField: 'system:index',
+  rightField: 'system:index'
+});
+
+// Create the join.
+var simpleJoin = ee.Join.saveFirst({
+  matchKey: 'match'});
+
+// Apply the join.
+var simpleJoined = simpleJoin.apply(area_veg_2000, area_veg_2020, filter);
+
+// Process the join
+var joined = simpleJoined.map(function(f) {
+  var joined_f = ee.Feature(f.get('match'));
+  var joined_count = joined_f.get('count');
+  var count = f.get('count');
+  
+  return ee.Feature(f.geometry(), {
+    'counta': count,
+    'countb': joined_count
+  })
+});
+
+// Compute the difference
+var result = joined.map(function(f) {
+  var difference = f.getNumber('counta').subtract(f.getNumber('countb'))
+  return f.set('difference', difference)
+});
+
+print('Result', result)
+
+Map.addLayer(result)
+
+Export.table.toDrive({
+  collection: result,
+  description:'difference_00_20',
+  fileFormat: 'shp'
+});
