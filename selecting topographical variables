@@ -1,0 +1,42 @@
+//selecting topographical variables
+
+//define the study area
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SD-23-V-D'])); //// Pampa:SH-21-X-D, Amazon: SC-20-V-D, Cerrado: SD-23-V-D 
+Map.addLayer(roi)
+
+//select the NASADEM
+var dataset = ee.Image('NASA/NASADEM_HGT/001').clip(roi);
+
+// create the elevation variable
+var elevation = dataset.select('elevation').reproject('EPSG:4326', null, 30);
+
+// create the slope variable
+var slope = ee.Terrain.slope(elevation);
+var slope = slope.reproject('EPSG:4326', null, 30).rename('SLP')
+
+//add variables in the map
+Map.addLayer(elevation, null, 'elevation')
+Map.addLayer(slope, null, 'slope')
+
+//export the image to google drive
+Export.image.toDrive({
+  image: elevation, 
+  description:'elevation',
+  folder:'variables_cerrado', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
+
+//export the image to google drive
+Export.image.toDrive({
+  image: slope, 
+  description:'slope',
+  folder:'variables_cerrado', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
+
