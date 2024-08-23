@@ -5,3 +5,5 @@ Code 1: Calculating the difference between the natural vegetation area in 2000 a
 Code 2: Calculating euclidean distance: https://code.earthengine.google.com/113f9e5150400ecbfe70c3d417e2e733
 
 Code 3: Selecting classes for later calculation of euclidean distance in GIS: 
+
+Code 4: Selecting vegetation suppression for later calculation of euclidean distance in GIS: 
