@@ -1,7 +1,7 @@
 //Selecting vegetation suppression for later calculation of euclidean distance in GIS
 
 //define the study area
-var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D']));
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D'])); //// Pampa:SH-21-X-D, Amazon: SC-20-V-D, Cerrado: SD-23-V-D 
 //Map.addLayer(roi)
 
 //////////////Creating a buffer to the study area//////////////
