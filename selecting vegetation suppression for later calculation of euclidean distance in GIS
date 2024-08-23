@@ -1,0 +1,77 @@
+//Selecting vegetation suppression for later calculation of euclidean distance in GIS
+
+//define the study area
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D']));
+//Map.addLayer(roi)
+
+//////////////Creating a buffer to the study area//////////////
+    //setting the size
+var buffer_size_1000 =  10000;
+
+    //creating the function
+var buffer_1000_function = function(feature) {
+  return feature.buffer(buffer_size_1000);
+};
+
+    //creating the buffer
+var buffer_roi = roi.map(buffer_1000_function)
+    //Map.addLayer(buffer_roi, null, 'buffer_roi')
+
+//Select the 1990 mapbiomas land use classification
+var image_1990 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(buffer_roi) 
+                   .select('classification_1990'); 
+
+// create a list of land use classes from the classification
+var fromList = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27];
+// A corresponding list of replacement values 
+var toList =  [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+
+
+// performs the reclassification
+var imgRemap_1990_veg = image_1990.remap({
+  from: fromList,
+  to: toList,
+  defaultValue: 0,
+  bandName: 'classification_1990'
+});
+
+//Select the 1990 mapbiomas vegetation land use class
+var veg_class = imgRemap_1990_veg.eq(1)
+//Map.addLayer(veg_class, null, 'veg_class_95')
+
+//Select the 1995 mapbiomas land use classification
+var image_1995 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(buffer_roi) 
+                   .select('classification_1995'); 
+
+// performs the reclassification
+var Remap_1995_anthropic_uses = image_1995.remap({
+  from: fromList,
+  to: toList,
+  defaultValue: 0,
+  bandName: 'classification_1995'
+});
+
+//Select the 1995 mapbiomas anthropic land use class
+var anthropic_uses_class = Remap_1995_anthropic_uses.eq(2)
+//Map.addLayer(anthropic_uses_class, null, 'anthropic_uses_class')
+
+//sum the 1990 vegetantion image with the 1995 anthropic image
+var sum_img = veg_class.multiply(anthropic_uses_class)
+//Map.addLayer(sum_img)
+
+//select the pixels that intersect in the two image
+var deforestation_90_95 = sum_img.eq(1)
+Map.addLayer(deforestation_90_95) 
+
+//export the image to google drive
+Export.image.toDrive({
+  image: deforestation_90_95, 
+  description:'deforestation_90_95',
+  folder:'variables_pampa', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
