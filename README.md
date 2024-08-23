@@ -4,6 +4,7 @@ This repository presents the computer codes used in the article: ‘Are land cha
 
 Code 1: Calculating the difference between the natural vegetation area in 2000 and 2020 for each cell: https://code.earthengine.google.com/474464f50b62ca5137017358475002e1
 
+
 *Codes to define predictive variables:*
 
 Code 2: Calculating euclidean distance: https://code.earthengine.google.com/113f9e5150400ecbfe70c3d417e2e733
