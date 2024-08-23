@@ -1,5 +1,7 @@
 ////////////////////////Calculating Euclidian distance////////////////////////
 //Application for euclidean distance for anthropic uses
+//Due to processing capacity limitation, for some classes it is 
+//not possible to generate a euclidean distance surface for the whole study area
 
 //////////////define the study area//////////////
 var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D'])); // Pampa:SH-21-X-D, Amazon: SC-20-V-D, Cerrado: SD-23-V-D  
@@ -7,7 +9,7 @@ Map.addLayer(roi)
  
 Map.centerObject(roi)
 
-//////////////Euclidean distance functions//////////////
+//////////////Creating a buffer to the study area//////////////
     //setting the size
 var buffer_size_1000 =  10000;
 
@@ -26,7 +28,15 @@ var image_1995 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbi
                    .clip(buffer_roi) 
                    .select('classification_1995'); 
 
-/*******************Euclidean distance anthropic uses*******************/
+//////////////Euclidean distance functions//////////////
+//euclidean Distance.
+var maxDistM = 7500;  
+
+    //calculate distance to target pixels
+var euclideanKernel = ee.Kernel.euclidean(maxDistM, 'meters');
+var visParamsEuclideanDist = {min: 0, max: maxDistM};
+
+//////////////Euclidean distance to anthropic uses//////////////
 // create a list of land use classes from the classification
 var fromList_anthropic_uses = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27];
 
@@ -41,19 +51,19 @@ var Remap_1995_anthropic_uses = image_1995.remap({
   bandName: 'classification_1995'
 });
 
-//Select the 2022 mapbiomas water land use class
+//Select the 1995 mapbiomas anthropic uses class
 var anthropic_uses_class = Remap_1995_anthropic_uses.eq(3)
 Map.addLayer(anthropic_uses_class, null, 'anthropic_uses_class')
 
     //applying the Euclidean distance function
-var anthropic_uses_distance_00 = anthropic_uses_class.distance(euclideanKernel).clip(roi);
-var anthropic_uses_distance_00 = anthropic_uses_distance_00.reproject('EPSG:4326', null, 30).rename('HDND')
-    Map.addLayer(anthropic_uses_distance_00, visParamsEuclideanDist, 'anthropic_uses_distance_00');
+var anthropic_uses_distance_95 = anthropic_uses_class.distance(euclideanKernel).clip(roi);
+var anthropic_uses_distance_95 = anthropic_uses_distance_95.reproject('EPSG:4326', null, 30).rename('HDND')
+    Map.addLayer(anthropic_uses_distance_95, visParamsEuclideanDist, 'anthropic_uses_distance_00');
 
 //export the image to google drive
 Export.image.toDrive({
-  image: anthropic_uses_distance_00, 
-  description:'anthropic_uses_distance_00',
+  image: anthropic_uses_distance_95, 
+  description:'anthropic_uses_distance_95',
   folder:'variables_pampa', 
   region:roi, 
   scale:30, 
