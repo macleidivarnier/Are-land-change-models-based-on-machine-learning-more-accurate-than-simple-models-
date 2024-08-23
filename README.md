@@ -10,4 +10,4 @@ Code 2: Calculating euclidean distance: https://code.earthengine.google.com/113f
 
 Code 3: Selecting classes for later calculation of euclidean distance in GIS: https://code.earthengine.google.com/5e2579c6af17be8708ea2d787903c060
 
-Code 4: Selecting vegetation suppression for later calculation of euclidean distance in GIS: https://code.earthengine.google.com/d89d7f7b1b3f9b6f632c0c74912641f1
+Code 4: Selecting vegetation suppression for later calculation of euclidean distance in GIS: https://code.earthengine.google.com/8029e7ebce78acb77928138736023237
