@@ -1,0 +1,116 @@
+//Selecting classes for later calculation of euclidean distance in GIS
+
+//define the study area
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SC-20-V-D'])); // Pampa:SH-21-X-D, Amazon: SC-20-V-D, Cerrado: SD-23-V-D  
+Map.addLayer(roi)
+
+Map.centerObject(roi)
+
+//creating a 60m buffer around the scars
+    //setting the size
+var buffer_size_1000 =  10000;
+
+    //creating the function
+var buffer_1000_function = function(feature) {
+  return feature.buffer(buffer_size_1000);
+};
+
+    //creating the buffer
+var buffer_roi = roi.map(buffer_1000_function)
+    Map.addLayer(buffer_roi, null, 'buffer_roi')
+
+//Select the 1995 mapbiomas land use classification
+var image_1995 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(buffer_roi) 
+                   .select('classification_1995'); 
+
+/*******************water*******************/
+
+// create a list of land use classes from the classification
+var fromList_water = [33];
+
+// A corresponding list of replacement values 
+var toList_water =  [1];
+
+// performs the reclassification
+var imgRemap_1995_water = image_1995.remap({
+  from: fromList_water,
+  to: toList_water,
+  defaultValue: 0,
+  bandName: 'classification_1995'
+});
+
+//Select the 1995 mapbiomas water land use class
+var water_class = imgRemap_1995_water.mask(imgRemap_1995_water.eq(1))
+Map.addLayer(water_class, null, 'water_class_95')
+
+//export the image to google drive
+Export.image.toDrive({
+  image: water_class, 
+  description:'water_class',
+  folder:'variables_pampa', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
+
+/*******************urban*******************/
+
+// create a list of land use classes from the classification
+var fromList_urban = [24];
+
+// A corresponding list of replacement values 
+var toList_urban =  [1];
+
+// performs the reclassification
+var imgRemap_1995_urban = image_1995.remap({
+  from: fromList_urban,
+  to: toList_urban,
+  defaultValue: 0,
+  bandName: 'classification_1995'
+});
+
+//Select the 1995 mapbiomas urban land use class
+var urban_class = imgRemap_1995_urban.mask(imgRemap_1995_urban.eq(1))
+Map.addLayer(urban_class, null, 'urban_class_95')
+
+//export the image to google drive
+Export.image.toDrive({
+  image: urban_class, 
+  description:'urban_class',
+  folder:'urban_class', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
+
+/*******************Anthropic*******************/
+var fromList_anthropic_uses = [0, 3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27]; 
+
+// A corresponding list of replacement values 
+var toList_anthropic_uses =  [0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, 2, 2, 3, 2]; 
+
+
+var imgRemap_1995_urban = image_1995.remap({
+  from: fromList_anthropic_uses,
+  to: toList_anthropic_uses,
+  defaultValue: 0,
+  bandName: 'classification_1995'
+});
+
+//Select the 1995 mapbiomas Anthropic land use class
+var urban_class = imgRemap_1995_urban.eq(3)
+Map.addLayer(urban_class, null, 'anthropic')
+
+//export the image to google drive
+Export.image.toDrive({
+  image: urban_class, 
+  description:'anthropic',
+  folder:'urban_class', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
