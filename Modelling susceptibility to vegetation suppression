@@ -1,0 +1,414 @@
+////////////////////defining Study Area////////////////////
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SC-20-V-D'])); // pampa:SH-21-X-D, acre: SC-20-V-D, bahia SD-23-V-D  
+Map.centerObject(roi, 10)   
+
+////////////////////variables from DEM////////////////////
+//selecting the NASADEM
+var dataset = ee.Image('NASA/NASADEM_HGT/001').clip(roi); 
+
+// creating the elevation variable
+var elev = dataset.select('elevation').reproject('EPSG:4326', null, 30) 
+
+// creating the slope variable
+var slope = ee.Terrain.slope(elev);
+var slp = slope.reproject('EPSG:4326', null, 30)
+
+//renaming the predictive variables
+var urban95 = urban95.rename('urban')
+var water = water.rename('water')
+var def = def.rename('vegetation_suppression')
+var antrop_am = antrop_am.rename('anthropic_uses')
+var rodov = rodov.rename('highways')
+var elev = elev.rename('elevation')
+var slp = slp.rename('slope')
+
+//creating a data cube
+var cb = antrop_am.addBands(def)
+             .addBands(elev)
+             .addBands(rodov)
+             .addBands(slp)
+             .addBands(urban95)
+             .addBands(water) 
+
+////////////////////Mapping vegetation suppression between 1995 and 2000////////////////////
+//selecting the 1995 mapbiomas land use classification
+var image_t = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_1995'); 
+
+// creating a list of land use classes from the classification
+var fromList = [0 ,3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27]; 
+
+// A corresponding list of replacement values 
+var toList =  [100, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]; 
+
+// performs the reclassification
+var t_remap = image_t.remap({
+  from: fromList,
+  to: toList,
+  bandName: 'classification_1995'
+}); 
+var t_remap_ = t_remap.selfMask() 
+
+//selecting the 1995 mapbiomas vegetation class
+var veg_class_t =  t_remap.eq(1)
+var veg_class_t_ =  t_remap.mask(t_remap.eq(1))
+//Map.addLayer(veg_class, null, 'veg_class_95') 
+
+//selecting the 2000 mapbiomas land use classification
+var image_t1 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2000'); 
+
+// performs the reclassification
+var land_use_t1 = image_t1.remap({
+  from: fromList,
+  to: toList,
+  bandName: 'classification_2000'
+}); 
+
+var t_remap_1 = land_use_t1.selfMask() 
+
+//selecting the 2000 mapbiomas veg class
+var veg_class_t1 =  land_use_t1.eq(1)
+var veg_class_t1_ =  land_use_t1.mask(land_use_t1.eq(1))
+
+//calculating the natural vegetation class in 1995
+var count = veg_class_t_.reduceRegion({
+  reducer: ee.Reducer.count(),
+  scale: 30,
+  crs: 'EPSG:4326',
+  geometry: roi,
+  maxPixels: 1e9
+}); 
+
+print(count, 'vegetation class in 1995') 
+
+//selecting the 2000 mapbiomas no vegetation class
+var no_veg_class_t1 = land_use_t1.eq(2)
+//Map.addLayer(anthropic_uses_class, null, 'anthropic_uses_class') 
+
+//sum the 1995 vegetention image with the 2000 anthropic image
+var sum_img = veg_class_t.multiply(no_veg_class_t1)
+//Map.addLayer(sum_img) 
+
+//selecting the pixels that intersect in the two image
+var deforestation_95_00 = sum_img.mask(sum_img.eq(1))
+//Map.addLayer(deforestation_95_00) 
+
+var def_00 = deforestation_95_00.updateMask(veg_class_t1)
+
+//export the 1995 to 2000 vegetation supression image to google drive
+Export.image.toDrive({
+  image: def_00, 
+  description:'def_00',
+  folder:'TOC_curve', 
+  region :roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+}) 
+
+//calculating the 1995 to 2000 vegetation supression area
+var count = deforestation_95_00.reduceRegion({
+  reducer: ee.Reducer.count(),
+  scale: 30,
+  crs: 'EPSG:4326',
+  geometry: roi,
+  maxPixels: 1e9
+}); 
+
+print(count, 'vegetation supression 1995 to 2000') 
+
+////////////////////Create samples that represent 1995-2000 vegetation supression ////////////////////
+var occurence = deforestation_95_00
+    .stratifiedSample({
+      numPoints: 10000,
+      scale: 30, 
+      geometries: true})
+    .map(function(f) {
+        return f.set('class', 1)
+    }) 
+
+//Map.addLayer(occurence, null, 'occurence') 
+
+////////////////////Create samples that represent 1995-2000 persistence////////////////////
+//sum the 1995 vegetention class with the 2000 vegetation class 
+var sum_img = veg_class_t.multiply(veg_class_t1)
+//Map.addLayer(sum_img) 
+
+//select the pixels that intersect in the two image
+var no_deforestation_95_00 = sum_img.mask(sum_img.eq(1))
+//Map.addLayer(no_deforestation_95_00) 
+
+var non_occurence = no_deforestation_95_00
+    .stratifiedSample({
+      numPoints: 10000,
+      scale: 30, 
+      geometries: true})
+    .map(function(f) {
+        return f.set('class', 0)
+    })
+    //print(non_occurence_ii)
+    //Map.addLayer(non_occurence, null, 'non_occurence') 
+
+////////////////////Group training samples data////////////////////
+var samples_group = occurence.merge(non_occurence) 
+
+//extract the values from the datacube variables for each sample training
+var samples_values = cb.reduceRegions(samples_group, ee.Reducer.mean()); 
+
+//define the name of the variables used in training
+var bandNames = cb.bandNames();
+    print(bandNames, "band useds in training") 
+
+//filter out null values from the training feature collection
+var samples_dataset = samples_values.randomColumn('random'); 
+
+var samples_no_nulls = samples_dataset.filter(
+  ee.Filter.notNull(samples_dataset.first().propertyNames())
+); 
+
+//dividing the samples for training and performance evaluation
+var training = samples_no_nulls.filter(ee.Filter.lte('random', 0.7));
+var performance_evaluation = samples_no_nulls.filter(ee.Filter.gt('random', 0.7)); 
+
+//random forest classifier
+var rf = ee.Classifier.smileRandomForest(28).train(training, 'class', bandNames)
+.setOutputMode('PROBABILITY');
+print(rf, 'rf') 
+
+//susceptibility mapping
+var rfclass = cb.select(bandNames).classify(rf); 
+
+//export the image to google drive
+Export.image.toDrive({
+  image: rfclass, 
+  description:'rfclass',
+  folder:'TOC_curve', 
+  region :roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+}) 
+
+//susceptibility map cut to the natural vegetation area of 2000
+var rfclass_ = rfclass.multiply(veg_class_t1)
+
+//export the image to google drive
+Export.image.toDrive({
+  image: rfclass_, 
+  description:'rfclass2',
+  folder:'TOC_curve', 
+  region :roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+}) 
+
+// Visualization parameter
+var viz = {min: 0, max: 1, palette:['green','yellow','red']};    
+    Map.addLayer(rfclass, viz,'RF');
+    Map.addLayer(rfclass_, viz,'RF_');
+    
+//Important factor of variables to the classification
+var rf_dict = rf.explain();
+    print('Explain:',rf_dict);
+var rf_variable_importance = ee.Feature(null, ee.Dictionary(rf_dict).get('importance')); 
+
+//Important factor in % of variables to the classification
+var importance = ee.Dictionary(
+  rf.explain().get('importance')
+)
+var totalImportance = importance.values().reduce(ee.Reducer.sum())
+var importancePercentage = importance.map(function (band, importance) {
+  return ee.Number(importance).divide(totalImportance).multiply(100)
+})
+    //print(importancePercentage);
+    
+var importance_percentage_geometry = ee.Feature(null, importancePercentage)
+
+//print the importance of variables in a graph
+var rf_percentage_chart =
+ui.Chart.feature.byProperty({features: importance_percentage_geometry})
+.setChartType('BarChart')
+.setOptions({
+title: 'Importance of variables in Random Forest classification (%)',
+legend: {position: 'none'},
+vAxis: {title: 'Variables',
+  titleTextStyle: {italic: false, bold: false}},
+hAxis: {title: 'Importance in %',
+  fontName: 'times new roman',
+  titleTextStyle: {italic: false, bold: false}},
+colors: ['silver'],
+viewWindow: {min: 0, max: 12},
+fontName: 'times new roman', fontSize: 40, 
+});
+    print(rf_percentage_chart); 
+
+////////////////////evaluation of training performance////////////////////
+// Calculate the Receiver Operating Characteristic (ROC) curve using the 'susceptibility surface and 
+//validation samples
+
+// calculating ROC curve
+var FF = ee.FeatureCollection(performance_evaluation).filterMetadata('class','equals',1)
+var NFF = ee.FeatureCollection(performance_evaluation).filterMetadata('class','equals',0)
+var FFrf = rfclass.reduceRegions(FF,ee.Reducer.max().setOutputs(['class']),30).map(function(x){return x.set('is_target', 1);})
+var NFFrf = rfclass.reduceRegions(NFF,ee.Reducer.max().setOutputs(['class']),30).map(function(x){return x.set('is_target',0);})
+var combined = FFrf.merge(NFFrf)
+print(combined,'combine') 
+
+//chance ROC curve
+var ROC_field = 'class', ROC_min = 0, ROC_max = 1, ROC_steps = 100, ROC_points = combined 
+
+var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
+  var target_roc = ROC_points.filterMetadata('is_target','equals',1)
+  // true-positive-rate, sensitivity  
+  var TPR = ee.Number(target_roc.filterMetadata(ROC_field,'greater_than',cutoff).size()).divide(target_roc.size()) 
+  var non_target_roc = ROC_points.filterMetadata('is_target','equals',0)
+  // true-negative-rate, specificity  
+  var TNR = ee.Number(non_target_roc.filterMetadata(ROC_field,'less_than',cutoff).size()).divide(non_target_roc.size()) 
+  return ee.Feature(null,{cutoff: cutoff, TPR: TPR, TNR: TNR, FPR:TNR.subtract(1).multiply(-1),  dist:TPR.subtract(1).pow(2).add(TNR.subtract(1).pow(2)).sqrt()})
+}))
+// Use trapezoidal approximation for area under curve (AUC)
+var X = ee.Array(ROC.aggregate_array('FPR')), 
+    Y = ee.Array(ROC.aggregate_array('TPR')), 
+    Xk_m_Xkm1 = X.slice(0,1).subtract(X.slice(0,0,-1)),
+    Yk_p_Ykm1 = Y.slice(0,1).add(Y.slice(0,0,-1)),
+    AUC = Xk_m_Xkm1.multiply(Yk_p_Ykm1).multiply(0.5).reduce('sum',[0]).abs().toList().get(0)
+    print(AUC,'Area under curve')
+// Plot the ROC curve
+    print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
+      title: 'ROC curve',
+      legend: 'none',
+      hAxis: { title: 'False-positive-rate'},
+      vAxis: { title: 'True-negative-rate'},
+      lineWidth: 1}))
+// find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
+var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC point cutoff') 
+
+////////////////////implementing a cellular automata algorithm//////////////////// 
+//Select the 2000 mapbiomas land use classification
+var image_t1 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(geometry) 
+                   .select('classification_1995'); 
+
+// creating a list of land use classes from the classification
+var fromList = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27]; 
+
+// A corresponding list of replacement values 
+var toList =  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0]; 
+
+// performs the reclassification
+var t_remap = image_t.remap({
+  from: fromList,
+  to: toList,
+  defaultValue: 0,
+  bandName: 'classification_1995'
+}).reproject('EPSG:4326', null, 30);
+//Map.addLayer(t_remap) 
+
+//selecting only anthropic land use classes
+var antrop = t_remap.eq(1)
+
+//calculating a 5x5 focal mean for each cell inside the study area 
+var ca_ = antrop.focalMean(5, 'square', 'pixels').clip(roi).multiply(veg_class_t1)
+Map.addLayer(ca_) 
+
+// creating a random surface - values between 0 to 1 
+var random =  ee.Image.random().clip(roi).multiply(veg_class_t1).reproject('EPSG:4326', null, 30)
+//Map.addLayer(random) 
+
+//adding the susceptibility surface, 5x5 focal mean and random surface
+var rf_cell = rfclass_.add(ca_).add(random)
+
+//calculating the maximum and minimum value of the final susceptibility surface
+var count = rf_cell.reduceRegion({
+  reducer: ee.Reducer.minMax(),
+  scale: 30,
+  crs: 'EPSG:4326',
+  geometry: roi,
+  maxPixels: 1e9
+});
+print(count) 
+
+//dividing the final susceptibility surface by the maximum value
+var rf_cell = rf_cell.divide(2.9524972238514513) 
+//var rf_cell = rf_cell.multiply(rand).updateMask(veg)
+Map.addLayer(rf_cell, viz)
+
+//export the final susceptibility surface to google drive
+Export.image.toDrive({
+  image: rf_cell, 
+  description:'random_amazon',
+  folder:'variables_amazon', 
+  region :roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+});
+
+////////////////////selecting the amount of change expected for the future////////////////////
+//the amount of vegetation suppression predicted for the future is defined by cutting the susceptibility
+//surface by the highest values.
+//the formula used to calculate the quantity of changes is: VSx =(VCt1 - VCt0/ Vt0)* 100/ Vtx 
+//where future vegetation suppression (VSx) is calculated from the total area suppressed in the 
+//training period (VCt1 - VCt0), divided by the total area of vegetation in t0 (1995), multiplied 
+//by 1% of the area of vegetation in the period before the one to be extrapolated. For example, if 
+//the model was trained between 1995 and 2000 and it was identified that vegetation suppression in 
+//this period corresponded to 1% of the vegetation existing in 1995, 1% of the vegetation area existing 
+//in 2000 was used to define the amount of change estimated for 2005. For 2010, 1% of the vegetation area 
+//that was estimated for 2005, and so on...
+
+//At this point, it is necessary to establish a limit of the probability surface that corresponds to the
+//area predicted to change
+var predicted_changes = rf_cell.gte(0.45967) //2005 = 0.45967 2010 = 0.39225 2015 = 0.356155 2020 = 0.33311 
+
+//calculating the amount of area predicted to change by cutting the susceptibility surface
+var transitionMatrix = predicted_changes.reduceRegion({
+  reducer: ee.Reducer.frequencyHistogram(), 
+  geometry: roi,
+  maxPixels: 3026796830,
+  scale: 30,
+  bestEffort: false
+});
+print('transitionMatrix - predicted_changes', transitionMatrix); 
+
+////////////////////spatialising predicted land use changes////////////////////
+//reclassifying the result of the susceptibility surface cut
+var de = [0, 1]; 
+
+var para = [7, 10]; 
+
+// performs the reclassification
+var predicted_changes_ = predicted_changes.remap({
+  from: de,
+  to: para,
+  defaultValue: 0,
+  bandName: 'classification'
+}).reproject('EPSG:4326', null, 30);
+
+//multiplying the predicted changes with the 2000 land use map
+var predicted_changes_= land_use_t1.multiply(predicted_changes_)
+//var predicted_changes_mask = predicted_changes_.updateMask(land_use_t1)
+Map.addLayer(predicted_changes_)
+
+var transitionMatrix = predicted_changes_.reduceRegion({
+  reducer: ee.Reducer.frequencyHistogram(), 
+  geometry: roi,
+  maxPixels: 3026796830,
+  scale: 30,
+  bestEffort: false
+});
+print('transitionMatrix - fraction pixel', transitionMatrix); 
+
+//export the image to google drive
+Export.image.toDrive({
+  image: predicted_changes_, 
+  description:'randon_05_rs',
+  folder:'amazon', 
+  region :roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+});
