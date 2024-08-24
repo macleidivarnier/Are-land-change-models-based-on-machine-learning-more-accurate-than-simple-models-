@@ -15,4 +15,5 @@ Code 4: Selecting vegetation suppression for later calculation of euclidean dist
 Code 5: Selecting topographical variables: https://code.earthengine.google.com/70f5e99de23298a903d7584014674f5e
 
 **Codes to modelling susceptibility to vegetation suppression**
+
 Code 5: Modelling susceptibility to vegetation suppression to the Amazon study area: https://code.earthengine.google.com/ad202df5f7eb61dd0cce973487f260a1
