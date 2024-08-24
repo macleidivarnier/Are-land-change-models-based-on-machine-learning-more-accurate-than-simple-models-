@@ -30,4 +30,4 @@ code 8: random susceptibility model to vegetation suppression: https://code.eart
 
 code 9: generating ROC curve: https://code.earthengine.google.com/647f3f9f7dc6a94e3a2b56591af0586f
 
-code 10: generating inverse ROC curve: 
+code 10: generating inverse ROC curve: https://code.earthengine.google.com/9fe0703e649c2be7af49e8ab4dee861b
