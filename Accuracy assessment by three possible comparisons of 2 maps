@@ -1,0 +1,192 @@
+//define the study area 
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SH-21-X-D'])); // pampa:SH-21-X-D, amazon: SC-20-V-D, cerrado SD-23-V-D  
+Map.centerObject(roi, 10) 
+
+////////////////////////////////////vegetation supression mapping - MapBiomas/////////////////////////////////////////
+//Select the t0 mapbiomas land use classification
+var mabiomas_t = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2000'); 
+
+// create a list of land use classes from the classification
+var fromList = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27];
+
+// A corresponding list of replacement values 
+var toList =  [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+
+// performs the reclassification
+var t_remap = mabiomas_t.remap({
+  from: fromList,
+  to: toList,
+  defaultValue: 0,
+  bandName: 'classification_2000'
+}).reproject('EPSG:4326', null, 30);
+//Map.addLayer(t_remap)
+
+//Select the vegetation land use class
+var veg_class_t = t_remap.eq(1) 
+//Map.addLayer(veg_class_t, null, 'veg_class_mapbiomas')
+
+//Select the t1 mapbiomas land use classification
+var mapbiomas_t1 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2020'); 
+
+var fromList = [3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27];
+
+// A corresponding list of replacement values 
+var toList =  [10, 10, 10, 10, 10, 10, 10, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20];
+
+// performs the reclassification
+var t1_remap = mapbiomas_t1.remap({
+  from: fromList,
+  to: toList,
+    defaultValue: 0,
+  bandName: 'classification_2020'
+}).reproject('EPSG:4326', null, 30);
+
+//Map.addLayer(t1_remap)
+
+//Selecting the no vegetation land use class
+var no_veg_t1 = t1_remap.eq(20)
+//Map.addLayer(no_veg_t1, null, 'no_veg_t1')
+
+//sum the t0 vegetation image with the t1 no vegetation image
+var veg_suppression = veg_class_t.multiply(no_veg_t1)
+//Map.addLayer(veg_suppression)
+
+//selecting vegetation suppression -  MapBiomas
+var def_count_mapbiomas = veg_suppression.mask(veg_suppression.eq(1))
+
+// create a list of land use classes from the classification
+var fromList_def_map = [0, 1];
+
+// A corresponding list of replacement values 
+var toList_def_map =  [0, 50];
+
+// performs the reclassification
+var def_mapbiomas_remap = veg_suppression.remap({
+  from: fromList_def_map,
+  to: toList_def_map,
+    defaultValue: 0,
+  bandName: 'remapped'
+});
+//Map.addLayer(def_mapbiomas_remap, null, 'def_mapbiomas')
+
+// calculating the quantity of vegetation supression
+var count_mapbiomas_def = def_count_mapbiomas.reduceRegion({
+  reducer: ee.Reducer.count(),
+  scale: 30,
+  crs: 'EPSG:4326',
+  geometry: roi,
+  maxPixels: 1e9
+});
+print(count_mapbiomas_def, 'Vegetation supression MapBiomas')
+
+////////////////////////////////////vegetation supression mapping - Model/////////////////////////////////////////
+//selecting the vegetation supression prediction map
+var model_rf_20 = model_rf_20.reproject('EPSG:4326', null, 30)
+
+// create a list of land use classes from the classification
+var fromList_2 = [7, 10, 14, 700];
+
+// A corresponding list of replacement values 
+var toList_2 =  [100, 500, 200, 0];
+
+// performs the reclassification
+var model_remap = model_rf_20.remap({
+  from: fromList_2,
+  to: toList_2,
+    defaultValue: 0,
+  bandName: 'remapped'
+});
+//Map.addLayer(model_remap, null, 'model_remap')
+
+//selecting vegetation suppression - Model
+var def_model = model_remap.mask(model_remap.eq(500))
+//Map.addLayer(def_model_remap, null, 'deforestation_model')
+
+//Calculating the quantity of vegetation suppression - Model
+var count_model_def = def_model.reduceRegion({
+  reducer: ee.Reducer.count(),
+  scale: 30,
+  crs: 'EPSG:4326',
+  geometry: roi,
+  maxPixels: 1e9
+});
+print(count_model_def, null, 'Vegetation supression model')
+
+///////////////////////////////////////three Maps Approach////////////////////////////////////
+
+//Previous land use classes:
+
+// 1 = vegetation Mapbiomas t
+// 2 = no vegetation Mapbiomas t
+// 10 = Vegetation Mapbiomas t1
+// 20 = No vegetation Mapbiomas t1
+// 50 = Vegetation suppression Mapbiomas
+// 100 = Vegetation model
+// 200 = No vegetation model
+// 500 = Vegetation suppression Model
+
+//adding the land use maps from MapBiomas at t0 and t1, the vegetation suppression 
+//mapping from MapBiomas and the land use prediction map
+var three_map = t_remap.add(t1_remap).add(def_mapbiomas_remap).add(model_remap)
+//print(three_map)
+
+// False alarmes: 711
+// Hits: 771
+// Misses: 171, 122, 212
+// Persistence/Correct rejections: 111, 222
+// No data: 100, 101, 102, 110, 120, 200, 202, 210, 220, 701
+
+//Calculating the area of each class
+var transitionMatrix = three_map.reduceRegion({
+  reducer: ee.Reducer.frequencyHistogram(), 
+  geometry: roi,
+  maxPixels: 3026796830,
+  scale: 30,
+  bestEffort: false
+});
+//print('transitionMatrix - three maps', transitionMatrix);
+
+//performing a reclassification
+// create a list of land use classes from the classification
+var fromList_3 = [0, 10, 101, 111, 171, 20, 202, 212, 222, 501, 511, 571];
+
+// A corresponding list of replacement values 
+var toList_3 =  [6, 6, 6, 1, 2, 6, 6, 3, 6, 6, 4, 5 ];
+
+//6 NO DATA (black), 1 PESISTENCE (green), 2 OMISSION (red), 3 REGENERATION(olive), 
+//4 fALSE ALARMS(orange), 5 HITS (purple)
+
+// performs the reclassification
+var three_map = three_map.remap({
+  from: fromList_3,
+  to: toList_3,
+    defaultValue: 0,
+  bandName: 'remapped'
+});
+Map.addLayer(three_map, {min: 1, max: 6, palette: ['green', 'red', 'olive','orange', 'purple', 'black']})
+var three_map = three_map.selfMask()
+
+//Calculating the area of the components of agreement and disagreement
+var transitionMatrix = three_map.reduceRegion({
+  reducer: ee.Reducer.frequencyHistogram(), 
+  geometry: roi,
+  maxPixels: 3026796830,
+  scale: 30,
+  bestEffort: false
+});
+print('transitionMatrix - three maps', transitionMatrix);
+
+//export the image to google drive
+Export.image.toDrive({
+  image: three_map, 
+  description:'three_map',
+  folder:'variables_pampa', 
+  region:roi, 
+  scale:30, 
+  crs:'EPSG:4326', 
+  maxPixels:1e13
+})
