@@ -32,6 +32,6 @@ Code 9: Generating ROC curve: https://code.earthengine.google.com/647f3f9f7dc6a9
 
 Code 10: Generating inverse ROC curve: https://code.earthengine.google.com/9fe0703e649c2be7af49e8ab4dee861b
 
-**code to evaluate the accuracy of natural vegetation suppression prediction map**
+**Code to evaluate the accuracy of natural vegetation suppression prediction map**
 
 Code 11: Accuracy assessment by three possible comparisons of 2 maps: https://code.earthengine.google.com/ec2ba01c3cbd0fc7e9a2b23c8d0758f0
