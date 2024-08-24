@@ -20,3 +20,4 @@ Code 5: Modelling susceptibility to vegetation suppression to the Amazon study a
 
 Code 6: Modelling susceptibility to vegetation suppression to the Cerrado study area: https://code.earthengine.google.com/72f7828943ed05f2f6fcf791d6950490
 
+Code 7: Modelling susceptibility to vegetation suppression to the Pampa study area: https://code.earthengine.google.com/c660bb3b4158bfa6a6afffd3e67a48c5
