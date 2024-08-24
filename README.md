@@ -24,10 +24,14 @@ Code 7: Modelling susceptibility to vegetation suppression to the Pampa study ar
 
 **Code to create a random susceptibility model to vegetation suppression**
 
-code 8: random susceptibility model to vegetation suppression: https://code.earthengine.google.com/0ac9b4fb98afce48a8483d12b7b99551
+code 8: Random susceptibility model to vegetation suppression: https://code.earthengine.google.com/0ac9b4fb98afce48a8483d12b7b99551
 
 **Codes to evaluate the acurracy of susceptibility model to vegetation suppression**
 
-Code 9: generating ROC curve: https://code.earthengine.google.com/647f3f9f7dc6a94e3a2b56591af0586f
+Code 9: Generating ROC curve: https://code.earthengine.google.com/647f3f9f7dc6a94e3a2b56591af0586f
 
-Code 10: generating inverse ROC curve: https://code.earthengine.google.com/9fe0703e649c2be7af49e8ab4dee861b
+Code 10: Generating inverse ROC curve: https://code.earthengine.google.com/9fe0703e649c2be7af49e8ab4dee861b
+
+**code to evaluate the accuracy of natural vegetation suppression prediction map**
+
+Code 11: Evaluation by three possible comparisons of 2 maps: 
