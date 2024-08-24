@@ -17,3 +17,5 @@ Code 5: Selecting topographical variables: https://code.earthengine.google.com/7
 **Codes to modelling susceptibility to vegetation suppression**
 
 Code 5: Modelling susceptibility to vegetation suppression to the Amazon study area: https://code.earthengine.google.com/ad202df5f7eb61dd0cce973487f260a1
+
+Code 6: Modelling susceptibility to vegetation suppression to the Cerrado study area: https://code.earthengine.google.com/72f7828943ed05f2f6fcf791d6950490
