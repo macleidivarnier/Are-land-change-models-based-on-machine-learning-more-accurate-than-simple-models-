@@ -1,0 +1,159 @@
+////////////////////Define Study Area////////////////////
+var roi = roi.filter(ee.Filter.inList('Nomencl', ['SD-23-V-D'])); // pampa:SH-21-X-D, rondonia: SC-20-V-D, bahia SD-23-V-D  
+Map.centerObject(roi, 10)   
+
+////////////////////selecting the model to be evaluated////////////////////
+var model = deforest_distance.clip(roi) 
+
+//calculating the maximum and minimum value of the susceptibility models
+var count = model.reduceRegion({
+  reducer: ee.Reducer.minMax(),
+  scale: 30,
+  crs: 'EPSG:4326',
+  geometry: roi,
+  maxPixels: 1e9
+});
+print(count) 
+
+//dividing the susceptibility surface by the maximum value
+var model = model.divide(14750.5263671875) 
+
+////////////////////selecting the natural vegetation suppressions of the desired period////////////////////
+//for this case, the ability of the probability surface to describe the 
+//suppressions between 2000 and 2020 is evaluated. 
+//Select the t0 mapbiomas land use classification
+var image_t = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2000'); 
+
+// create a list of land use classes from the classification
+var fromList = [0 ,3, 4, 5, 6, 49, 11, 12, 50, 32, 29, 13, 15, 18, 19, 39, 20, 40, 62, 41, 36, 46, 47, 35, 48, 9, 21, 23, 24, 30, 25, 33, 31, 27]; 
+
+// A corresponding list of replacement values 
+var toList =  [100, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]; 
+
+// performs the reclassification
+var t_remap = image_t.remap({
+  from: fromList,
+  to: toList,
+  bandName: 'classification_2000'
+}); 
+
+//Select the t1 mapbiomas vegetation land use class
+var veg_class_t =  t_remap.eq(1)
+var veg_class_t_ =  t_remap.mask(t_remap.eq(1))
+//Map.addLayer(veg_class, null, 'veg_class_95') 
+
+//Select the t1 mapbiomas land use classification
+var image_t1 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                   .clip(roi) 
+                   .select('classification_2020'); 
+
+// performs the reclassification
+var no_veg_t1 = image_t1.remap({
+  from: fromList,
+  to: toList,
+  bandName: 'classification_2020'
+}); 
+
+//Select the t1 mapbiomas no vegetation land use class
+var no_veg_class_t1 = no_veg_t1.eq(2)
+//Map.addLayer(anthropic_uses_class, null, 'anthropic_uses_class') 
+
+//sum the t1 vegetention image with the t2 no vegetation image
+var sum_img = veg_class_t.multiply(no_veg_class_t1)
+//Map.addLayer(sum_img) 
+
+//select the pixels that intersect in the two image
+var deforestation_95_00 = sum_img.mask(sum_img.eq(1))
+Map.addLayer(deforestation_95_00) 
+
+////////////////////Create samples that represent vegetation supression////////////////////
+var occurence = deforestation_95_00
+    .stratifiedSample({
+      numPoints: 10000,
+      scale: 30, 
+      geometries: true})
+    .map(function(f) {
+        return f.set('class', 1)
+    }) 
+
+//Map.addLayer(occurence, null, 'occurence') 
+
+////////////////////Create samples that represent no vegetation suppression////////////////////
+//Select the t0 mapbiomas vegetation land use class
+var veg_class_t =  t_remap.eq(1)
+//Map.addLayer(veg_class, null, 'veg_class_95') 
+
+//Select the t1 mapbiomas vegetation land use class
+var no_veg_class_t1_ = no_veg_t1.eq(1)
+//Map.addLayer(anthropic_uses_class, null, 'anthropic_uses_class') 
+
+//sum the t0 vegetation image with the t1 no vegetation image
+var sum_img = veg_class_t.multiply(no_veg_class_t1_)
+//Map.addLayer(sum_img) 
+
+//select the pixels that intersect in the two image
+var no_deforestation_95_00 = sum_img.mask(sum_img.eq(1))
+Map.addLayer(no_deforestation_95_00) 
+
+//generating no vegetation suppression samples
+var non_occurence = no_deforestation_95_00
+    .stratifiedSample({
+      numPoints: 10000,
+      scale: 30, 
+      geometries: true})
+    .map(function(f) {
+        return f.set('class', 0)
+    })
+//print(non_occurence_ii)
+//Map.addLayer(non_occurence, null, 'non_occurence') 
+
+////////////////////Group the samples data////////////////////
+var samples_group = occurence.merge(non_occurence) 
+
+// fill the samples
+var samples_no_nulls = samples_group.filter(
+  ee.Filter.notNull(samples_group.first().propertyNames())
+); 
+
+////////////////////acuracy evaluation////////////////////
+// Calculate the Receiver Operating Characteristic (ROC) curve 
+
+// Functions to calculate ROC curve
+var FF = ee.FeatureCollection(samples_no_nulls).filterMetadata('class','equals',1)
+var NFF = ee.FeatureCollection(samples_no_nulls).filterMetadata('class','equals',0)
+var FFrf = model.reduceRegions(FF,ee.Reducer.max().setOutputs(['class']),30).map(function(x){return x.set('is_target', 1);})
+var NFFrf = model.reduceRegions(NFF,ee.Reducer.max().setOutputs(['class']),30).map(function(x){return x.set('is_target',0);})
+var combined = FFrf.merge(NFFrf)
+print(combined,'combine') 
+
+//defining the quantity of limits to divide the susceptibility surface 
+var ROC_field = 'class', ROC_min = 0, ROC_max = 1, ROC_steps = 100, ROC_points = combined 
+
+//plotting the ROC curve graph
+var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
+  var target_roc = ROC_points.filterMetadata('is_target','equals',1)
+  // true-positive-rate, sensitivity  
+  var TPR = ee.Number(target_roc.filterMetadata(ROC_field,'less_than',cutoff).size()).divide(target_roc.size()) 
+  var non_target_roc = ROC_points.filterMetadata('is_target','equals',0)
+  // true-negative-rate, specificity  
+  var TNR = ee.Number(non_target_roc.filterMetadata(ROC_field,'greater_than',cutoff).size()).divide(non_target_roc.size()) 
+  return ee.Feature(null,{cutoff: cutoff, TPR: TPR, TNR: TNR, FPR:TNR.subtract(1).multiply(-1),  dist:TPR.subtract(1).pow(2).add(TNR.subtract(1).pow(2)).sqrt()})
+}))
+// Use trapezoidal approximation for area under curve (AUC)
+var X = ee.Array(ROC.aggregate_array('FPR')), 
+    Y = ee.Array(ROC.aggregate_array('TPR')), 
+    Xk_m_Xkm1 = X.slice(0,1).subtract(X.slice(0,0,-1)),
+    Yk_p_Ykm1 = Y.slice(0,1).add(Y.slice(0,0,-1)),
+    AUC = Xk_m_Xkm1.multiply(Yk_p_Ykm1).multiply(0.5).reduce('sum',[0]).abs().toList().get(0)
+    print(AUC,'Area under curve')
+// Plot the ROC curve
+    print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
+      title: 'ROC curve',
+      legend: 'none',
+      hAxis: { title: 'False-positive-rate'},
+      vAxis: { title: 'True-negative-rate'},
+      lineWidth: 1}))
+// find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
+var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC point cutoff') 
