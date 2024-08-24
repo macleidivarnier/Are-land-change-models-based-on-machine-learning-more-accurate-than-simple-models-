@@ -131,7 +131,7 @@ print(combined,'combine')
 //defining the quantity of limits to divide the susceptibility surface 
 var ROC_field = 'class', ROC_min = 0, ROC_max = 1, ROC_steps = 100, ROC_points = combined 
 
-//plotting the RO curve graph
+//plotting the ROC curve graph
 var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
   var target_roc = ROC_points.filterMetadata('is_target','equals',1)
   // true-positive-rate, sensitivity  
